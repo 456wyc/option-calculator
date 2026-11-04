@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A 股期权计算器 · 实时行情 / 持仓 / 收益</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">OP</div>
+      <div>
+        <h1>A 股期权计算器</h1>
+        <p>实时行情 · 持仓管理 · 组合收益分析</p>
+      </div>
+    </div>
+    <div class="market-status">
+      <span class="dot" id="statusDot"></span>
+      <div class="status-text">
+        <strong id="statusLabel">正在连接行情…</strong>
+        <span id="statusDetail">数据源：东方财富公开行情</span>
+      </div>
+    </div>
+    <div class="top-actions">
+      <label class="switch"><input type="checkbox" id="autoRefresh" checked><span>自动刷新</span></label>
+      <button class="btn btn-ghost" id="refreshBtn" type="button">刷新行情</button>
+    </div>
+  </header>
+
+  <section class="summary-strip" id="summaryStrip">
+    <div class="stat-card"><span>持仓浮动盈亏</span><strong id="sUnrealized">--</strong><small>按最新价逐腿盯市</small></div>
+    <div class="stat-card"><span>已实现盈亏</span><strong id="sRealized">--</strong><small>平仓成交 · 扣手续费</small></div>
+    <div class="stat-card"><span>组合 Delta 市值</span><strong id="sDelta">--</strong><small>标的方向敞口（元）</small></div>
+    <div class="stat-card"><span>义务仓保证金</span><strong id="sMargin">--</strong><small>交易所公式估算</small></div>
+  </section>
+
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-tab="market" type="button">行情看板</button>
+    <button class="tab" data-tab="positions" type="button">我的持仓</button>
+    <button class="tab" data-tab="analysis" type="button">收益分析</button>
+    <button class="tab" data-tab="calc" type="button">快速试算</button>
+  </nav>
+
+  <main>
+    <!-- 行情看板 -->
+    <section class="panel active" id="tab-market">
+      <div class="panel-head">
+        <div class="filters">
+          <label class="field"><span>标的</span><select id="underlyingSelect"></select></label>
+          <div class="expiry-group" id="expiryGroup"></div>
+        </div>
+        <div class="quote-stats" id="quoteStats"></div>
+      </div>
+      <div class="notice" id="marketNotice" hidden></div>
+      <div class="table-scroll">
+        <table class="quote-table" id="quoteTable">
+          <thead>
+            <tr class="group-head">
+              <th colspan="6" class="call-side">认购 CALL</th>
+              <th rowspan="2" class="strike-col">行权价</th>
+              <th colspan="6" class="put-side">认沽 PUT</th>
+            </tr>
+            <tr class="col-head">
+              <th>IV</th><th>Delta</th><th>涨跌幅</th><th>成交量</th><th>持仓量</th><th>最新价</th>
+              <th>最新价</th><th>持仓量</th><th>成交量</th><th>涨跌幅</th><th>Delta</th><th>IV</th>
+            </tr>
+          </thead>
+          <tbody id="quoteBody"></tbody>
+        </table>
+      </div>
+      <div class="table-foot">
+        <span>点击任意「最新价」可快速录入持仓；价格右上角的 <b>∑</b> 可弹出按当前价快速试算收益；红涨绿跌，实值合约带浅色底纹。</span>
+        <span id="quoteUpdated"></span>
+      </div>
+    </section>
+
+    <!-- 持仓管理 -->
+    <section class="panel" id="tab-positions">
+      <div class="panel-head">
+        <div>
+          <h2>持仓明细</h2>
+          <p class="sub">支持买入 / 卖出开仓，部分平仓，行情缺失时可填写自定义现价。</p>
+        </div>
+        <button class="btn btn-primary" id="addPosBtn" type="button">+ 新增持仓</button>
+      </div>
+      <div class="table-scroll">
+        <table class="data-table" id="positionTable">
+          <thead><tr>
+            <th>合约</th><th>方向</th><th>张数(剩余/总)</th><th>开仓价</th><th>现价</th>
+            <th>浮动盈亏</th><th>收益率</th><th>IV</th><th>Delta</th><th>保证金</th><th>操作</th>
+          </tr></thead>
+          <tbody id="positionBody"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="positionEmpty" hidden>还没有持仓，点击右上角「新增持仓」开始记录。</div>
+      <div class="section-title"><h3>平仓记录</h3><span>已实现盈亏来自以下成交</span></div>
+      <div class="table-scroll compact">
+        <table class="data-table">
+          <thead><tr><th>时间</th><th>合约</th><th>方向</th><th>张数</th><th>开仓价</th><th>平仓价</th><th>手续费</th><th>已实现盈亏</th><th></th></tr></thead>
+          <tbody id="closeBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 收益分析 -->
+    <section class="panel" id="tab-analysis">
+      <div class="panel-head"><div><h2>组合收益</h2><p class="sub">按最新行情逐腿盯市，曲线为各标的同比例变动下的组合盈亏。</p></div></div>
+      <div class="metric-grid" id="metricGrid"></div>
+      <div class="chart-card">
+        <div class="chart-head">
+          <h3>组合盈亏曲线</h3>
+          <div class="legend">
+            <span><i class="line gold"></i>到期盈亏</span>
+            <span><i class="line blue"></i>当前理论盈亏（固定 IV / 剩余天数）</span>
+            <span><i class="line dash"></i>当前标的价格</span>
+          </div>
+        </div>
+        <div class="chart-wrap" id="chartWrap">
+          <canvas id="pnlChart"></canvas>
+          <div class="chart-tip" id="chartTip" hidden></div>
+          <div class="chart-empty" id="chartEmpty">录入持仓后展示组合盈亏曲线</div>
+        </div>
+        <div class="breakeven-row" id="breakevenRow"></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-head">
+          <h3>各持仓盈亏贡献</h3>
+          <span class="muted" style="font-size:11.5px">零轴居中 · 红盈绿亏 · 浮动盈亏 + 已实现盈亏</span>
+        </div>
+        <div class="bar-chart" id="contribBars"></div>
+      </div>
+      <div class="section-title"><h3>按标的分组</h3><span>同一标的的盈亏与敞口汇总</span></div>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead><tr><th>标的</th><th>现价</th><th>涨跌</th><th>持仓腿数</th><th>浮动盈亏</th><th>Delta 市值</th><th>保证金</th><th>市值</th></tr></thead>
+          <tbody id="groupBody"></tbody>
+        </table>
+      </div>
+      <p class="disclaimer-inline">IV 与希腊值基于 Black-Scholes 欧式模型估算（无风险利率 1.8%、无分红）；A 股 ETF 期权为美式行权，估算值仅供研究参考，保证金为交易所公式估算，实际以券商结算为准。</p>
+    </section>
+
+    <!-- 快速试算 -->
+    <section class="panel" id="tab-calc">
+      <div class="calc-layout">
+        <div class="calc-form card">
+          <h2>单笔期权收益试算</h2>
+          <p class="sub">输入开仓与平仓权利金，快速计算盈亏、收益率与盈亏平衡价。</p>
+          <label class="field"><span>从当前行情带入合约</span><select id="calcContract"></select></label>
+          <div class="field"><span>交易方向</span>
+            <div class="segment" id="calcDirection">
+              <button class="active" data-dir="long" data-type="call" type="button">买入认购</button>
+              <button data-dir="long" data-type="put" type="button">买入认沽</button>
+              <button data-dir="short" data-type="call" type="button">卖出认购</button>
+              <button data-dir="short" data-type="put" type="button">卖出认沽</button>
+            </div>
+          </div>
+          <div class="form-grid">
+            <label class="field"><span>行权价</span><input id="cStrike" type="number" step="0.0001" value="2.9000"></label>
+            <label class="field"><span>标的现价</span><input id="cSpot" type="number" step="0.0001" value="2.9230"></label>
+            <label class="field"><span>开仓权利金</span><input id="cOpen" type="number" step="0.0001" value="0.0673"></label>
+            <label class="field"><span>平仓权利金</span><input id="cClose" type="number" step="0.0001" value="0.1000"></label>
+            <label class="field"><span>张数</span><input id="cQty" type="number" step="1" value="2"></label>
+            <label class="field"><span>合约单位</span><input id="cMult" type="number" step="1" value="10000"></label>
+          </div>
+          <label class="field"><span>市场</span><select id="cMarket"><option value="10">ETF 期权（保证金系数 12%）</option><option value="11">股指期权（保证金系数 15%）</option></select></label>
+          <button class="btn btn-primary wide" id="calcBtn" type="button">计算收益</button>
+        </div>
+        <div class="calc-result card">
+          <h2>试算结果</h2>
+          <div class="result-hero"><span>本笔盈亏</span><strong id="rPnl">--</strong><small id="rRoi">--</small></div>
+          <div class="result-list" id="resultList"></div>
+          <div class="formula-note">
+            <h4>计算口径</h4>
+            <p>多头盈亏 = (平仓价 − 开仓价) × 张数 × 合约单位；空头反之。收益率按权利金成本（或义务仓保证金）计算。</p>
+            <p>盈亏平衡价：认购 = 行权价 + 开仓权利金，认沽 = 行权价 − 开仓权利金。</p>
+          </div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-head">
+          <h3>单笔策略盈亏图</h3>
+          <div class="legend">
+            <span><i class="line gold"></i>到期盈亏</span>
+            <span><i class="line blue"></i>当前理论盈亏（按权利金反推 IV 重估）</span>
+            <span><i class="line dash"></i>当前标的价格</span>
+            <span><i class="dot-mark"></i>按平仓价盈亏点</span>
+          </div>
+        </div>
+        <div class="chart-wrap" id="calcChartWrap">
+          <canvas id="calcChart"></canvas>
+          <div class="chart-tip" id="calcTip" hidden></div>
+          <div class="chart-empty" id="calcChartEmpty">填写试算参数后展示盈亏图</div>
+        </div>
+        <div class="breakeven-row" id="calcKeyPoints"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">数据来自东方财富公开行情接口，可能有延迟；本工具仅用于策略研究与盈亏测算，不构成投资建议。</footer>
+</div>
+
+<div class="modal-backdrop" id="modal" hidden><div class="modal" id="modalBox"></div></div>
+<div class="toast" id="toast" hidden></div>
+<script src="/app.js"></script>
+</body>
+</html>

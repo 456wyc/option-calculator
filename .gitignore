@@ -1,0 +1,24 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# ---- 运行时数据（本地持仓库 SQLite）----
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+
+# ---- 临时文件 / 缓存 ----
+.playwright-cli/
+*.png
+*.log
+
+# ---- 本地环境配置 ----
+.env
+.env.*
+*.local
