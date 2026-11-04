@@ -49,7 +49,7 @@
       opts.headers = { 'Content-Type': 'application/json' };
       opts.body = JSON.stringify(body);
     }
-    const resp = await fetch(path, opts);
+    const resp = await fetch((window.__API_BASE__ || '') + path, opts);
     let data;
     try { data = await resp.json(); } catch (e) { throw new Error('服务返回异常'); }
     if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>A 股期权计算器 · 实时行情 / 持仓 / 收益</title>
-<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="app">
@@ -203,6 +203,7 @@
 
 <div class="modal-backdrop" id="modal" hidden><div class="modal" id="modalBox"></div></div>
 <div class="toast" id="toast" hidden></div>
-<script src="/app.js"></script>
+<script>window.__API_BASE__ = window.__API_BASE__ || '';</script>
+<script src="app.js"></script>
 </body>
 </html>
