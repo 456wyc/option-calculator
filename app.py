@@ -35,8 +35,15 @@ def iv_map(data):
                                    c.get("strike") or 0,
                                    analytics.years_to_expiry(c.get("days")),
                                    c.get("opt_type"))
-        if iv:
-            result.setdefault((c["underlying"], c["expiry_label"], c["strike"]), iv)
+        if not iv:
+            continue
+        key = (c["underlying"], c["expiry_label"], c["strike"])
+        spot = c.get("spot") or 0
+        otm = (c["strike"] > spot) if c.get("opt_type") == "call" else (c["strike"] < spot)
+        prev = result.get(key)
+        # 同一行权价两侧都能反推时优先取虚值一侧：实值侧时间价值薄，IV 容易失真
+        if prev is None or otm:
+            result[key] = iv
     with _IV_LOCK:
         _IV_CACHE["key"] = key
         _IV_CACHE["map"] = result

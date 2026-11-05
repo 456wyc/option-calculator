@@ -42,11 +42,18 @@ def intrinsic_value(s, k, opt_type):
 
 
 def implied_vol(price, s, k, t, opt_type, r=RISK_FREE_RATE, q=DIVIDEND_YIELD):
-    """二分法反推隐含波动率；无解（价格低于内在价值等）时返回 None。"""
+    """二分法反推隐含波动率。
+
+    无解（价格低于内在价值等）或结果明显失真时返回 None：深度实值合约的
+    时间价值趋零，二分法会给出近 0 的伪 IV（如 0.05%），超出 [2%, 200%]
+    的合理区间一律视为无效，由调用方用对侧 IV / 历史波动率兜底。"""
     if price is None or price <= 0 or s <= 0 or k <= 0 or t <= 0:
         return None
-    intrinsic_disc = max(intrinsic_value(s, k, opt_type) * math.exp(-r * t), 0.0)
-    if price <= intrinsic_disc + 1e-8:
+    # BS 模型 σ→0 的价格下限是贴现远期（S·e^-qt − K·e^-rt），市价低于它时无解；
+    # 用内在价值×贴现作判定会漏掉这类情况，让二分法坍缩到下界给出伪 IV。
+    floor = (s * math.exp(-q * t) - k * math.exp(-r * t) if opt_type == "call"
+             else k * math.exp(-r * t) - s * math.exp(-q * t))
+    if price <= max(floor, 0.0) + 1e-8:
         return None
     low, high = 0.0005, 4.0
     if bs_price(s, k, t, high, opt_type, r, q) < price:
@@ -57,7 +64,8 @@ def implied_vol(price, s, k, t, opt_type, r=RISK_FREE_RATE, q=DIVIDEND_YIELD):
             high = mid
         else:
             low = mid
-    return (low + high) / 2.0
+    iv = (low + high) / 2.0
+    return iv if 0.02 <= iv <= 2.0 else None
 
 
 def greeks(s, k, t, sigma, opt_type, r=RISK_FREE_RATE, q=DIVIDEND_YIELD):
@@ -98,9 +106,17 @@ def enrich(contract, r=RISK_FREE_RATE, iv_override=None):
     last = out.get("last")
     t = years_to_expiry(out.get("days"))
     iv = implied_vol(last, s, k, t, out.get("opt_type"), r)
-    out["iv_source"] = "self" if iv else ("pair" if iv_override else None)
+    src = "self" if iv else None
+    if iv and iv_override and abs(iv - iv_override) > max(0.04, 0.3 * iv_override):
+        # 深度实值合约时间价值极薄，反推 IV 容易明显偏离对侧合约，失去一致性
+        iv, src = iv_override, "pair"
     if not iv and iv_override:
         iv = iv_override
+        src = "pair"
+    if not iv and out.get("hist_vol"):
+        iv = out["hist_vol"] / 100.0
+        src = "hist"
+    out["iv_source"] = src
     out["iv"] = iv
     out.update(greeks(s, k, t, iv, out.get("opt_type"), r) if iv else
                {key: None for key in ("delta", "gamma", "vega", "theta", "rho")})
