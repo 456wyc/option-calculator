@@ -43,10 +43,11 @@ option_calculator/
 ├── analytics.py                # BS 定价、IV/Greeks 反推、曲线计算
 ├── storage.py                  # SQLite 持仓存储
 ├── data/                       # 本地数据库（已 git 忽略）
-├── web/                        # 前端静态资源
+├── web/                        # 应用前端（依赖后端 API）
 │   ├── index.html
 │   ├── app.js
 │   └── style.css
+├── docs/index.html             # GitHub Pages 静态落地页
 ├── .gitignore
 ├── README.md
 └── .github/workflows/pages.yml # GitHub Pages 部署
@@ -72,16 +73,12 @@ option_calculator/
 ## 🌐 部署
 
 ### 自托管（推荐，全功能）
-直接在服务器运行 `python app.py`，用 Nginx 等将 `/api` 反向代理到该服务即可。前端默认使用相对路径 `/api/`，无需额外配置。
+直接在服务器运行 `python app.py` 即可，前端默认同源请求 `/api/`，无需额外配置。若前后端分离部署，可在 `web/index.html` 顶部设置 `window.__API_BASE__` 指向后端地址。
 
-### GitHub Pages（仅前端演示）
-仓库已包含 `.github/workflows/pages.yml`。将代码推送到 `main` 分支后，在仓库 **Settings → Pages → Build and deployment** 选择 **GitHub Actions** 即会把 `web/` 部署为静态站点。
+### GitHub Pages（静态落地页）
+`.github/workflows/pages.yml` 会把 `docs/`（纯静态项目介绍页）部署到 GitHub Pages。推送到 `main` 分支后，在仓库 **Settings → Pages → Build and deployment** 选择 **GitHub Actions** 即可。
 
-> ⚠️ GitHub Pages 只能托管静态前端，**无法运行行情后端**。若想在 Pages 上获取真实行情，需要：
-> 1. 在可公网访问的服务器运行 `python app.py` 提供后端；
-> 2. 在前端 `web/index.html` 顶部设置 `window.__API_BASE__ = 'https://你的后端地址'`（默认空字符串，表示同源）。
->
-> 也可以自建网关对 `/api` 做反向代理，使前端保持同源。
+> ⚠️ Pages 站点**只是介绍页**：不加载应用本体、不请求任何行情接口。应用依赖 Python 后端（行情抓取、BS 定价、保证金计算、SQLite 持仓），GitHub Pages 无法运行后端，因此真正使用功能请本地执行 `python app.py`，或把整套服务部署到自有服务器。
 
 ## ⚠️ 免责声明
 - 行情数据来自第三方公开接口，可能存在延迟、缺失或错误，请以券商终端为准。
